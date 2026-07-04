@@ -22,14 +22,9 @@ from backend.src.infrastructure.db.models import Base
 # Alembic Config object
 config = context.config
 
-# Set the database URL from settings.
-# Bypass ConfigParser's interpolation (%% escaping) so passwords
-# containing % (e.g. URL-encoded chars like %40) don't crash.
 settings = get_settings()
-cfg = config.get_section(config.config_ini_section, {})
-cfg["sqlalchemy.url"] = str(settings.DATABASE_URL)
-# Write back through the raw parser to skip the interpolation step.
-config.cfg._sections[config.config_ini_section] = cfg
+# No set_main_option here — ConfigParser chokes on % chars in passwords.
+# The URL is injected directly into the engine in run_migrations_online().
 
 # Set up Python logging from alembic.ini
 if config.config_file_name is not None:
@@ -46,7 +41,7 @@ def run_migrations_offline() -> None:
     Calls to context.execute() here emit the given string to the
     script output.
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = str(settings.DATABASE_URL)
     context.configure(
         url=url,
         target_metadata=target_metadata,
