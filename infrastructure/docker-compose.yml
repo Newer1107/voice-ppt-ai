@@ -44,6 +44,9 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ../.env
+    environment:
+      - STORAGE_ROOT=/data/storage
+      - DATA_DIR=/data
     expose:
       - "8000"
     depends_on:
@@ -65,6 +68,9 @@ services:
     command: celery -A src.worker.celery_app worker -Q default,audio,transcription,llm,tts,pptx,priority_high -l INFO --concurrency=2
     env_file:
       - ../.env
+    environment:
+      - STORAGE_ROOT=/data/storage
+      - DATA_DIR=/data
     depends_on:
       - backend
       - redis

@@ -135,9 +135,10 @@ def run_full_pipeline(
 
         if lecture.video_path and not lecture.audio_path:
             src_path = str(storage_root / lecture.video_path)
-            out_path = str(StoragePaths.extracted_audio(lid, project_id))
-            audio_result = extract_audio(src_path, str(out_path))
-            lecture.audio_path = str(audio_result.audio_path)
+            rel_out = StoragePaths.extracted_audio(lid, project_id)
+            abs_out = str(storage_root / rel_out)
+            audio_result = extract_audio(src_path, abs_out)
+            lecture.audio_path = rel_out
             lecture.duration_seconds = int(audio_result.duration_seconds)
         elif lecture.audio_path:
             audio_result = type('obj', (object,), {'duration_seconds': lecture.duration_seconds or 0})()
@@ -326,13 +327,14 @@ def run_full_pipeline(
             if not slide:
                 continue
 
-            audio_out = str(StoragePaths.narration_audio(lid, project_id, slide.slide_number))
+            rel_audio = StoragePaths.narration_audio(lid, project_id, slide.slide_number)
+            abs_audio = str(storage_root / rel_audio)
             tts_result = generate_slide_tts(
                 text=ndb.script_text,
-                output_path=str(audio_out),
+                output_path=abs_audio,
                 slide_number=slide.slide_number,
             )
-            ndb.audio_path = tts_result.audio_path
+            ndb.audio_path = rel_audio
             ndb.duration_seconds = tts_result.duration_seconds
         session.flush()
 
@@ -356,11 +358,12 @@ def run_full_pipeline(
                         slide_audio_map[slide.slide_number] = str(storage_root / ndb.audio_path)
 
             if slide_audio_map:
-                output_path = str(StoragePaths.output_pptx(lid, project_id))
+                rel_out = StoragePaths.output_pptx(lid, project_id)
+                abs_out = str(storage_root / rel_out)
                 embed_result = embed_narration_into_pptx(
                     pptx_path=pptx_abs,
                     slide_audio_map=slide_audio_map,
-                    output_path=str(output_path),
+                    output_path=abs_out,
                 )
                 lecture.narrated_pptx_path = embed_result.output_path
                 session.flush()

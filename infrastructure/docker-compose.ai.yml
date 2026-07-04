@@ -56,6 +56,10 @@ services:
       - TTS_SAMPLE_RATE=24000
       - VLLM_API_URL=http://vllm:8000/v1
       - VLLM_MODEL=Qwen/Qwen3-8B
+      # Data directories (Docker volumes mounted at these paths)
+      - DATA_DIR=/data
+      - VOICE_EMBEDDINGS_DIR=/data/voice_embeddings
+      - CACHE_DIR=/data/cache
     volumes:
       - model_cache:/root/.cache
       - voice_embeddings:/data/voice_embeddings

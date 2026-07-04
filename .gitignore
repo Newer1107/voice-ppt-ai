@@ -1,18 +1,39 @@
 .graymatter
+
+# Runtime data directories
+data/
+storage/
+outputs/
+temp/
+cache/
+models/
+voice_embeddings/
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.env
 .venv
 venv/
 env/
 *.egg-info/
 dist/
 build/
+
+# Node.js
 node_modules/
 .next/
-.storage/
+
+# Environment
+.env
+
+# Database
 *.db
+
+# OS
 .DS_Store
+
+# Logs
+*.log
 .omo

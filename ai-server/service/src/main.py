@@ -48,8 +48,13 @@ TTS_SAMPLE_RATE = 24000
 VLLM_API_URL = "http://vllm:8000/v1"
 VLLM_MODEL = "Qwen/Qwen3-8B"
 
-EMBEDDING_DIR = Path("/data/voice_embeddings")
+# Resolve paths relative to the project root (ai-server/service/../../)
+_BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+_DATA_DIR = Path(os.getenv("DATA_DIR", str(_BASE_DIR / "data")))
+EMBEDDING_DIR = Path(os.getenv("VOICE_EMBEDDINGS_DIR", str(_DATA_DIR / "voice_embeddings")))
 EMBEDDING_DIR.mkdir(parents=True, exist_ok=True)
+_MODELS_CACHE_DIR = Path(os.getenv("CACHE_DIR", str(_DATA_DIR / "cache")))
+_MODELS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # ─── Global model references ────────────────────────────────────────
 

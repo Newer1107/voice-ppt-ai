@@ -37,9 +37,14 @@ class Settings(BaseSettings):
     AI_TTS_URL: str = "http://tts:8003"                      # kept for backward compat
     AI_API_KEY: str = ""
 
-    # Storage
+    # Storage — all paths default to project-root/data/*
     STORAGE_BACKEND: str = "local"
-    STORAGE_ROOT: str = "./storage"
+    STORAGE_ROOT: str = "data/storage"
+    DATA_DIR: str = "data"
+    VOICE_EMBEDDINGS_DIR: str = "data/voice_embeddings"
+    CACHE_DIR: str = "data/cache"
+    MODELS_DIR: str = "data/models"
+    TEMP_DIR: str = "data/temp"
 
     # Upload Limits
     MAX_VIDEO_SIZE_BYTES: int = 2_147_483_648  # 2GB

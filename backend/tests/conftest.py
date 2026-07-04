@@ -2,6 +2,7 @@
 
 import asyncio
 import uuid
+import tempfile
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -24,7 +25,8 @@ from backend.src.api.dependencies.providers import get_storage
 
 # Use SQLite for testing (fast, no external deps)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
-TEST_STORAGE_ROOT = "./test_storage"
+_TEST_TMP = tempfile.mkdtemp(prefix="lecture_narrator_test_")
+TEST_STORAGE_ROOT = _TEST_TMP
 
 
 @pytest.fixture(scope="session")
