@@ -267,11 +267,11 @@ AI_TTS_URL=http://localhost:8003
 
 ```
 backend/
-├── alembic/                    # Database migrations
+├── alembic.ini                  # Alembic configuration
+├── alembic/                     # Migration scripts
 │   ├── versions/
 │   │   └── 0001_initial_schema.py
-│   ├── env.py
-│   └── alembic.ini
+│   └── env.py
 ├── src/
 │   ├── __init__.py
 │   ├── api/                    # Interface Adapters (FastAPI)

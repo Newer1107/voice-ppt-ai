@@ -22,9 +22,14 @@ from backend.src.infrastructure.db.models import Base
 # Alembic Config object
 config = context.config
 
-# Set the database URL from settings
+# Set the database URL from settings.
+# Bypass ConfigParser's interpolation (%% escaping) so passwords
+# containing % (e.g. URL-encoded chars like %40) don't crash.
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL))
+cfg = config.get_section(config.config_ini_section, {})
+cfg["sqlalchemy.url"] = str(settings.DATABASE_URL)
+# Write back through the raw parser to skip the interpolation step.
+config.cfg._sections[config.config_ini_section] = cfg
 
 # Set up Python logging from alembic.ini
 if config.config_file_name is not None:

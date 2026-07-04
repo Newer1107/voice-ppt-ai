@@ -29,7 +29,7 @@ ai-lecture-narrator/
 │   ├── alembic/                      # Database migrations
 │   │   ├── versions/0001_initial_schema.py
 │   │   ├── env.py
-│   │   └── alembic.ini
+│   └── alembic.ini
 │   ├── src/
 │   │   ├── api/                      # Interface Adapters (FastAPI)
 │   │   │   ├── routes/               # Route handlers (thin controllers)
