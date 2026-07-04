@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "lecture-narrator-backend"
+version = "1.0.0"
+description = "AI Lecture Narration Generator - Backend API"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "ARG"]
+
+[tool.pytest.ini_options]
+markers = ["asyncio: async tests"]
+testpaths = ["tests"]
+asyncio_mode = "auto"

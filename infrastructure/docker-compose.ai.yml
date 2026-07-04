@@ -1,0 +1,66 @@
+version: "3.9"
+
+networks:
+  ai-network:
+    driver: bridge
+
+volumes:
+  model_cache:
+  voice_embeddings:
+
+services:
+  vllm:
+    image: vllm/vllm-openai:latest
+    command:
+      - "--model"
+      - "Qwen/Qwen3-8B"
+      - "--gpu-memory-utilization"
+      - "0.90"
+      - "--max-model-len"
+      - "32768"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+    volumes:
+      - model_cache:/root/.cache/huggingface
+    expose:
+      - "8000"
+    networks:
+      - ai-network
+    restart: unless-stopped
+
+  gpu-service:
+    build:
+      context: ../ai-server/service
+      dockerfile: Dockerfile
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    environment:
+      - WHISPER_MODEL_SIZE=large-v3
+      - WHISPER_DEVICE=cuda
+      - WHISPER_COMPUTE_TYPE=float16
+      - EMBEDDING_DEVICE=cuda
+      - EMBEDDING_BATCH_SIZE=32
+      - TTS_DEVICE=cuda
+      - TTS_SAMPLE_RATE=24000
+      - VLLM_API_URL=http://vllm:8000/v1
+      - VLLM_MODEL=Qwen/Qwen3-8B
+    volumes:
+      - model_cache:/root/.cache
+      - voice_embeddings:/data/voice_embeddings
+    expose:
+      - "8001"
+    networks:
+      - ai-network
+    restart: unless-stopped
