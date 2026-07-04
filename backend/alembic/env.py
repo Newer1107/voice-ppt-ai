@@ -1,12 +1,20 @@
 """Alembic environment configuration for async SQLAlchemy."""
 
 import asyncio
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+# Add the project root (parent of backend/) to sys.path so that
+# `backend.src.*` imports resolve correctly. This mirrors what
+# `PYTHONPATH=..` does when running uvicorn from the backend directory.
+_project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(_project_root))
 
 from backend.src.config.settings import get_settings
 from backend.src.infrastructure.db.models import Base
