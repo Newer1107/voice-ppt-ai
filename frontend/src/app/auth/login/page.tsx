@@ -21,6 +21,8 @@ export default function LoginPage() {
 
     try {
       const tokens = await authApi.login({ email, password });
+      // Store token first so getMe() can authenticate
+      useAuthStore.getState().setAccessToken(tokens.access_token);
       const me = await authApi.getMe();
       setAuth(me, tokens.access_token, tokens.refresh_token);
       router.push('/dashboard');
