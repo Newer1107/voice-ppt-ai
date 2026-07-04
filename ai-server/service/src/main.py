@@ -5,7 +5,7 @@ Runs on GPU Server (Machine B). Loads all models once at startup:
   - Faster-Whisper (transcription)
   - BGE-M3 (embeddings, via sentence-transformers)
   - F5-TTS (speech synthesis)
-  - vLLM client (Qwen, runs in separate container)
+  - SGLang client (Qwen, runs as a separate process)
 
 Single port, single container, single process, one set of models in VRAM.
 """
@@ -32,21 +32,21 @@ from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
-# ─── Configuration ──────────────────────────────────────────────────
+# ─── Configuration (env-var overridable) ─────────────────────────────
 
-WHISPER_MODEL_SIZE = "large-v3"
-WHISPER_DEVICE = "cuda"
-WHISPER_COMPUTE_TYPE = "float16"
+WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "large-v3")
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cuda")
+WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "float16")
 
-EMBEDDING_MODEL_NAME = "BAAI/bge-m3"
-EMBEDDING_DEVICE = "cuda"
+EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
+EMBEDDING_DEVICE = os.getenv("EMBEDDING_DEVICE", "cuda")
 
-TTS_MODEL_PATH = "SWivid/F5-TTS"
-TTS_DEVICE = "cuda"
-TTS_SAMPLE_RATE = 24000
+TTS_MODEL_PATH = os.getenv("TTS_MODEL_PATH", "SWivid/F5-TTS")
+TTS_DEVICE = os.getenv("TTS_DEVICE", "cuda")
+TTS_SAMPLE_RATE = int(os.getenv("TTS_SAMPLE_RATE", "24000"))
 
-VLLM_API_URL = "http://vllm:8000/v1"
-VLLM_MODEL = "Qwen/Qwen3-8B"
+LLM_API_URL = os.getenv("LLM_API_URL", "http://localhost:30000/v1")
+LLM_MODEL = os.getenv("LLM_MODEL", "Qwen/Qwen3-8B")
 
 # Resolve paths relative to the project root (ai-server/service/../../)
 _BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -127,7 +127,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AI Lecture Narrator — GPU Service",
-    description="Unified inference: Whisper, BGE-M3, Qwen/vLLM, F5-TTS",
+    description="Unified inference: Whisper, BGE-M3, Qwen/SGLang, F5-TTS",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -138,10 +138,10 @@ router = APIRouter(prefix="/ai/v1")
 
 @router.get("/health")
 async def health():
-    vllm_ok = False
+    sglang_ok = False
     try:
-        r = httpx.get(f"{VLLM_API_URL}/models", timeout=5)
-        vllm_ok = r.is_success
+        r = httpx.get(f"{LLM_API_URL}/models", timeout=5)
+        sglang_ok = r.is_success
     except Exception:
         pass
     return {
@@ -150,7 +150,7 @@ async def health():
         "bge": {"loaded": bge_model is not None, "model": EMBEDDING_MODEL_NAME,
                 "dimensions": bge_model.get_sentence_embedding_dimension() if bge_model else 0, "device": EMBEDDING_DEVICE},
         "f5tts": {"loaded": tts_model is not None, "sample_rate": TTS_SAMPLE_RATE, "device": TTS_DEVICE},
-        "vllm": {"loaded": vllm_ok, "model": VLLM_MODEL, "api_url": VLLM_API_URL},
+        "sglang": {"loaded": sglang_ok, "model": LLM_MODEL, "api_url": LLM_API_URL},
     }
 
 
@@ -237,20 +237,20 @@ async def dimensions():
 
 # ─── LLM — Alignment ────────────────────────────────────────────────
 
-def _call_vllm(messages: list[dict], max_tokens: int = 2048, temperature: float = 0.1) -> str:
+def _call_llm(messages: list[dict], max_tokens: int = 2048, temperature: float = 0.1) -> str:
     payload = {
-        "model": VLLM_MODEL, "messages": messages,
+        "model": LLM_MODEL, "messages": messages,
         "max_tokens": max_tokens, "temperature": temperature,
         "response_format": {"type": "json_object"},
     }
     try:
-        r = httpx.post(f"{VLLM_API_URL}/chat/completions", json=payload, timeout=120)
+        r = httpx.post(f"{LLM_API_URL}/chat/completions", json=payload, timeout=120)
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"]
     except httpx.TimeoutException:
         raise HTTPException(504, "LLM timed out")
     except Exception as e:
-        logger.exception("vLLM call failed")
+        logger.exception("SGLang call failed")
         raise HTTPException(502, f"LLM error: {e}")
 
 
@@ -308,7 +308,7 @@ Output: {"alignments": [{"segment_number": int, "slide_number": int, "confidence
             f"Seg {s['segment_number']} [{s['start_time']:.1f}s-{s['end_time']:.1f}s]: {s['text']}"
             for s in batch
         )
-        raw = _call_vllm([
+        raw = _call_llm([
             {"role": "system", "content": sysp},
             {"role": "user", "content": f"Slides:\n{slide_text}\n{cand_text}\n\nBatch (start {bstart + 1}):\n{seg_text}\n\nReturn ONLY valid JSON."},
         ])
@@ -316,7 +316,7 @@ Output: {"alignments": [{"segment_number": int, "slide_number": int, "confidence
         all_al.extend(result.get("alignments", []))
         all_ua.extend(result.get("unassigned_segments", []))
 
-    return {"alignments": all_al, "unassigned_segments": all_ua, "model": VLLM_MODEL}
+    return {"alignments": all_al, "unassigned_segments": all_ua, "model": LLM_MODEL}
 
 
 # ─── LLM — Narration ────────────────────────────────────────────────
@@ -352,7 +352,7 @@ Output: {"slide_number": int, "script_text": str, "estimated_duration_seconds": 
         ) if segs else "No transcript available."
 
         try:
-            raw = _call_vllm([
+            raw = _call_llm([
                 {"role": "system", "content": sysp},
                 {"role": "user", "content": f"Title: {lecture_title}\n\nSlide {sn}:\n{raw_text}\n\nNotes: {notes or 'None'}\n\nTranscript:\n{transcript_text}\n\nGenerate narration. Return ONLY valid JSON."},
             ], max_tokens=1024)
@@ -371,7 +371,7 @@ Output: {"slide_number": int, "script_text": str, "estimated_duration_seconds": 
                 "estimated_duration_seconds": 30, "tone": "educational", "key_points": [],
             })
 
-    return {"narrations": narrations, "model": VLLM_MODEL}
+    return {"narrations": narrations, "model": LLM_MODEL}
 
 
 # ─── TTS ─────────────────────────────────────────────────────────────

@@ -82,7 +82,7 @@
 │  │                              │    │     │  └──────────────┬───────────────────┘
 │  │  ┌────────────────────────┐  │    │     │                 │ HTTP
 │  │  │  API Routes            │  │    │     │  ┌──────────────▼───────────────────┐
-│  │  │  Auth / Projects /     │  │    │     │  │  vLLM (Port 8000) — Qwen3-8B    │
+│  │  │  Auth / Projects /     │  │    │     │  │  SGLang (Port 8000) — Qwen3-8B    │
 │  │  │  Lectures / Files      │  │    │     │  │  Separate container, own CUDA   │
 │  │  └────────────────────────┘  │    │     │  └──────────────────────────────────┘
 │  │                              │    │     │
@@ -111,7 +111,7 @@
 | Server | Responsibilities |
 |--------|-----------------|
 | **Application (A)** | Next.js frontend, FastAPI backend, PostgreSQL, Redis, file storage, PowerPoint parsing, Celery worker, pipeline orchestration, progress tracking |
-| **GPU (B)** | Faster-Whisper transcription, BGE-M3 embeddings, Qwen via vLLM, F5-TTS speech synthesis. No user data stored. |
+| **GPU (B)** | Faster-Whisper transcription, BGE-M3 embeddings, Qwen via SGLang, F5-TTS speech synthesis. No user data stored. |
 
 ### Communication
 
@@ -543,7 +543,7 @@ sudo systemctl restart docker
 │                    GPU Server (Machine B)                     │
 │                                                              │
 │  ┌──────────────┐                                            │
-│  │  vLLM         │  Port 8000                                │
+│  │  SGLang         │  Port 8000                                │
 │  │  (Qwen3-8B)  │  GPU: ~16GB VRAM                          │
 │  │  OpenAI API   │                                            │
 │  └──────┬───────┘                                            │
@@ -564,14 +564,14 @@ sudo systemctl restart docker
 
 **GPU Memory Budget (Blackwell 24GB):**
 
-All non-vLLM models share a single container and are loaded once at startup.
+All non-SGLang models share a single container and are loaded once at startup.
 
 | Container | Models | VRAM | Notes |
 |-----------|--------|------|-------|
-| `vllm` | Qwen3-8B (BF16) | ~16GB | Always loaded, separate CUDA context |
+| `sglang` | Qwen3-8B (BF16) | ~16GB | Always loaded, separate CUDA context |
 | `gpu-service` | Whisper + BGE-M3 + F5-TTS | ~10GB | Loaded once at startup, shared container |
 
-vLLM runs in its own container with its own CUDA context. The unified `gpu-service`
+SGLang runs in its own container with its own CUDA context. The unified `gpu-service`
 container loads Whisper (~4GB), BGE-M3 (~2GB), and F5-TTS (~4GB) simultaneously
 at startup, sharing the remaining ~8GB of VRAM effectively.
 
@@ -604,12 +604,19 @@ pip install faster-whisper sentence-transformers
 # Start the unified GPU service
 uvicorn src.main:app --host 0.0.0.0 --port 8001
 
-# In another terminal, start vLLM for Qwen:
-docker run --gpus all -p 8000:8000 \
-  vllm/vllm-openai:latest \
-  --model Qwen/Qwen3-8B \
-  --gpu-memory-utilization 0.90 \
-  --max-model-len 32768
+# In another terminal, start SGLang for Qwen:
+docker run --gpus all -p 30000:30000 \
+  lmsysorg/sglang:latest \
+  python3 -m sglang.launch_server \
+  --model-path Qwen/Qwen3-8B \
+  --host 0.0.0.0 \
+  --port 30000 \
+  --mem-fraction-static 0.90 \
+  --context-length 32768
+
+# Or install directly (no Docker):
+pip install sglang[all]
+python3 -m sglang.launch_server --model-path Qwen/Qwen3-8B --port 30000
 ```
 
 **Test all endpoints:**
@@ -872,7 +879,7 @@ curl http://localhost:8001/ai/v1/health   # Unified GPU service (all models)
 
 | Service | GPU | Port | Models |
 |---------|-----|------|--------|
-| `vllm` | Required | 8000 | Qwen/Qwen3-8B |
+| `sglang` | Required | 30000 | Qwen/Qwen3-8B |
 | `gpu-service` | Required | 8001 | Whisper large-v3 + BGE-M3 + F5-TTS |
 
 ### 10.3 Makefile Commands
@@ -976,7 +983,7 @@ CORS_ORIGINS=["http://localhost:3000"]  # Allowed origins
 # AI MODEL CONFIGURATION
 # =============================================================================
 WHISPER_MODEL_SIZE=large-v3
-VLLM_MODEL=Qwen/Qwen3-8B
+LLM_MODEL=Qwen/Qwen3-8B
 TTS_SAMPLE_RATE=24000
 
 # =============================================================================

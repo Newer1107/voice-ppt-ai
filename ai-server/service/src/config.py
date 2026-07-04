@@ -22,8 +22,8 @@ class ServiceConfig(BaseSettings):
     tts_device: str = "cuda"
     tts_sample_rate: int = 24000
 
-    # vLLM (separate container)
-    vllm_api_url: str = "http://vllm:8000/v1"
-    vllm_model: str = "Qwen/Qwen3-8B"
+    # SGLang (LLM serving, separate process)
+    llm_api_url: str = "http://localhost:30000/v1"
+    llm_model: str = "Qwen/Qwen3-8B"
 
     model_config = {"env_prefix": "AI_"}

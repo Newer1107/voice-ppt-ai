@@ -60,7 +60,7 @@ class Settings(BaseSettings):
 
     # Models
     WHISPER_MODEL_SIZE: str = "large-v3"
-    VLLM_MODEL: str = "Qwen/Qwen3-8B"
+    LLM_MODEL: str = "Qwen/Qwen3-8B"
     TTS_SAMPLE_RATE: int = 24000
 
     model_config = {"env_file": ".env", "case_sensitive": True, "extra": "ignore"}

@@ -9,14 +9,21 @@ volumes:
   voice_embeddings:
 
 services:
-  vllm:
-    image: vllm/vllm-openai:latest
+  sglang:
+    image: lmsysorg/sglang:latest
     command:
-      - "--model"
+      - "python3"
+      - "-m"
+      - "sglang.launch_server"
+      - "--model-path"
       - "Qwen/Qwen3-8B"
-      - "--gpu-memory-utilization"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "30000"
+      - "--mem-fraction-static"
       - "0.90"
-      - "--max-model-len"
+      - "--context-length"
       - "32768"
     deploy:
       resources:
@@ -30,7 +37,7 @@ services:
     volumes:
       - model_cache:/root/.cache/huggingface
     expose:
-      - "8000"
+      - "30000"
     networks:
       - ai-network
     restart: unless-stopped
@@ -54,8 +61,8 @@ services:
       - EMBEDDING_BATCH_SIZE=32
       - TTS_DEVICE=cuda
       - TTS_SAMPLE_RATE=24000
-      - VLLM_API_URL=http://vllm:8000/v1
-      - VLLM_MODEL=Qwen/Qwen3-8B
+      - LLM_API_URL=http://sglang:30000/v1
+      - LLM_MODEL=Qwen/Qwen3-8B
       # Data directories (Docker volumes mounted at these paths)
       - DATA_DIR=/data
       - VOICE_EMBEDDINGS_DIR=/data/voice_embeddings
