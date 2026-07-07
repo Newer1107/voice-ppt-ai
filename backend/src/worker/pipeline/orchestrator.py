@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from sqlalchemy import select
+
 from backend.src.config.settings import get_settings
 from backend.src.infrastructure.db.models.lecture import LectureModel
 from backend.src.infrastructure.db.models.job import JobModel
@@ -21,9 +23,7 @@ from backend.src.infrastructure.db.models.slide import SlideModel
 from backend.src.infrastructure.db.models.narration import NarrationModel as NarrationDbModel
 from backend.src.infrastructure.db.models.transcript_segment import TranscriptSegmentModel
 from backend.src.infrastructure.db.models.file_record import FileModel
-from backend.src.infrastructure.db.repositories.lecture_repo import LectureRepository
-from backend.src.infrastructure.db.repositories.job_repo import JobRepository
-from backend.src.infrastructure.db.repositories.slide_repo import SlideRepository
+# Sync-only — no async repositories here
 from backend.src.infrastructure.storage.local_storage import StoragePaths
 
 from backend.src.worker.pipeline.extract_audio import extract_audio
@@ -67,8 +67,11 @@ def _update_progress(
 ) -> float:
     """Compute and persist overall pipeline progress."""
     progress = sum(STAGE_WEIGHTS[s] for s in completed_stages)
-    repo = LectureRepository(session)
-    repo.update_status(lecture_id, "processing" if progress < 1.0 else "completed")
+    result = session.execute(select(LectureModel).where(LectureModel.id == lecture_id))
+    lecture = result.scalar_one_or_none()
+    if lecture:
+        lecture.status = "processing" if progress < 1.0 else "completed"
+        session.flush()
     return min(progress, 1.0)
 
 
@@ -80,8 +83,7 @@ def _update_job_stage(
     error_message: Optional[str] = None,
 ) -> None:
     """Create or update job record for a pipeline stage."""
-    repo = JobRepository(session)
-    jobs = repo.list_by_lecture(lecture_id)
+    jobs = session.query(JobModel).filter(JobModel.lecture_id == lecture_id).all()
     job = next((j for j in jobs if j.job_type == stage), None)
     if job:
         job.status = status
@@ -115,9 +117,10 @@ def run_full_pipeline(
     lecture = None
 
     try:
-        # Load lecture
-        repo = LectureRepository(session)
-        lecture = repo.get(lecture_id)
+        result = session.execute(
+            select(LectureModel).where(LectureModel.id == lecture_id)
+        )
+        lecture = result.scalar_one_or_none()
         if not lecture:
             raise ValueError(f"Lecture not found: {lecture_id}")
 
