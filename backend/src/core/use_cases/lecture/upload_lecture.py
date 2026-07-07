@@ -124,16 +124,24 @@ class UploadLectureUseCase:
                     root = (Path(__file__).resolve().parent.parent.parent.parent.parent / root).resolve()
                 old_abs = root / old
                 new_abs = root / new
-                if old_abs.exists():
-                    new_abs.parent.mkdir(parents=True, exist_ok=True)
-                    old_abs.rename(new_abs)
-                    logger.debug("Renamed %s -> %s", old, new)
+            if old_abs.exists():
+                new_abs.parent.mkdir(parents=True, exist_ok=True)
+                old_abs.rename(new_abs)
+                logger.debug("Renamed %s -> %s", old, new)
 
         job = JobModel(
             lecture_id=lecture.id, job_type="full_pipeline", status="pending",
             payload={"extract_audio": audio_path is None, "has_pptx": pptx_path is not None},
         )
         job = await self._lecture_repo.add(job)
+
+        # Dispatch Celery task to process pipeline asynchronously
+        try:
+            from backend.src.worker.tasks.lecture_tasks import process_lecture_pipeline
+            process_lecture_pipeline.delay(str(lecture.id))
+            logger.info("Dispatched pipeline task for lecture %s", lecture.id)
+        except ImportError:
+            logger.warning("Celery task not available — pipeline will not run automatically")
 
         file_specs = []
         if video_data:
