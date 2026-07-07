@@ -15,13 +15,12 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# Start backend
+# Start backend (from project root so backend.src.* imports resolve)
 echo "Starting backend on port $BACKEND_PORT..."
 source "$VENV/bin/activate"
-cd "$ROOT/backend"
-uvicorn main:app --host 0.0.0.0 --port "$BACKEND_PORT" &
-BACKEND_PID=$!
 cd "$ROOT"
+uvicorn backend.main:app --host 0.0.0.0 --port "$BACKEND_PORT" &
+BACKEND_PID=$!
 
 sleep 2
 
