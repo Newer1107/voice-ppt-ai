@@ -1,12 +1,10 @@
 """Celery task definitions for the lecture processing pipeline."""
 
-import asyncio
 import logging
-
-from sqlalchemy.ext.asyncio import AsyncSession
+import uuid
 
 from backend.src.config.settings import get_settings
-from backend.src.infrastructure.db.session import async_session_maker
+from backend.src.infrastructure.db.session import get_sync_session
 from backend.src.worker.celery_app import celery_app
 from backend.src.worker.pipeline.orchestrator import run_full_pipeline
 
@@ -23,23 +21,24 @@ def process_lecture_pipeline(self, lecture_id: str):
     logger.info("TASK: Starting pipeline for lecture %s (attempt %d/%d)", lecture_id, self.request.retries + 1, self.max_retries + 1)
 
     try:
-        asyncio.run(_run_pipeline_async(lecture_id))
+        _run_pipeline(lecture_id)
         logger.info("TASK: Pipeline complete for lecture %s", lecture_id)
     except Exception as exc:
         logger.exception("TASK: Pipeline failed for lecture %s", lecture_id)
         raise self.retry(exc=exc)
 
 
-async def _run_pipeline_async(lecture_id: str):
-    """Execute the pipeline within an async context with a DB session."""
-    import uuid
+def _run_pipeline(lecture_id: str):
+    """Execute the pipeline with a sync DB session."""
     lid = uuid.UUID(lecture_id)
     settings = get_settings()
 
-    async with async_session_maker() as session:
-        try:
-            await run_full_pipeline(session, lid, settings)
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+    session = get_sync_session()
+    try:
+        run_full_pipeline(session, lid, settings)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
