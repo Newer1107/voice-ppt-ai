@@ -48,7 +48,6 @@ def get_sync_session() -> SyncSession:
     global sync_session_maker
     if sync_session_maker is None:
         from sqlalchemy.orm import sessionmaker as SyncSessionMaker
-        global sync_session_maker
         sync_session_maker = SyncSessionMaker(
             bind=_sync_engine,
             expire_on_commit=False,
