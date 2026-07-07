@@ -37,3 +37,6 @@ celery_app.conf.task_queues = {
 
 celery_app.conf.task_default_queue = "default"
 celery_app.conf.task_default_routing_key = "default"
+
+# Import task modules so @celery_app.task decorators register at import time
+celery_app.autodiscover_tasks(["backend.src.worker.tasks"])
