@@ -6,6 +6,13 @@ VENV="$ROOT/.venv"
 BACKEND_PORT=${BACKEND_PORT:-8000}
 FRONTEND_PORT=${FRONTEND_PORT:-3000}
 
+# AI server — change AI_SERVICE_HOST to your GPU server's IP
+# Docker: http://gpu-service:8001   |   Direct: http://<gpu-server-ip>:8001
+AI_SERVICE_HOST=${AI_SERVICE_HOST:-"175.175.0.254"}
+export AI_SERVICE_URL="http://${AI_SERVICE_HOST}:8001"
+
+echo "AI_SERVICE_URL=$AI_SERVICE_URL"
+
 cleanup() {
     echo ""
     echo "Shutting down..."

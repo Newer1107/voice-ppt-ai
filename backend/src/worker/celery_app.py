@@ -1,8 +1,15 @@
 """Celery application configuration."""
 
+import logging
+
 from celery import Celery
 
+from backend.src.config.logging import setup_logging
 from backend.src.config.settings import get_settings
+
+# Apply logging config (Celery defaults to INFO, which leaks SQL queries)
+setup_logging()
+logging.getLogger(__name__).info("Celery logging configured")
 
 settings = get_settings()
 

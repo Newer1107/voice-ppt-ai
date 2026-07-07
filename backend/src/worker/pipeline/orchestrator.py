@@ -128,6 +128,7 @@ def run_full_pipeline(
         session.flush()
 
         settings = get_settings()
+        logger.info("Pipeline AI_SERVICE_URL=%s", settings.AI_SERVICE_URL)
         storage_root = Path(settings.STORAGE_ROOT)
         project_id = str(lecture.project_id)
         lid = str(lecture_id)
