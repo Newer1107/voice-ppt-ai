@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.src.api.errors.handlers import NotFoundError
-from backend.src.core.dto.project import ProjectResponse
+from backend.src.core.dto.project import ProjectDetailResponse, LectureSummary, ProjectResponse
 from backend.src.infrastructure.db.repositories.project_repo import ProjectRepository
 
 
@@ -17,8 +17,12 @@ class GetProjectUseCase:
 
     async def execute(
         self, user_id: uuid.UUID, project_id: uuid.UUID
-    ) -> ProjectResponse:
+    ) -> ProjectDetailResponse:
         project = await self._repo.find_by_user_and_id(user_id, project_id)
         if not project:
             raise NotFoundError(message="Project not found")
-        return ProjectResponse.model_validate(project)
+        lectures = [LectureSummary.model_validate(l) for l in project.lectures]
+        resp = ProjectDetailResponse.model_validate(project)
+        resp.lectures = lectures
+        resp.lecture_count = len(lectures)
+        return resp

@@ -1,24 +1,17 @@
-"""Structured JSON logging configuration."""
+"""Structured logging configuration."""
 
 import logging
+import os
 import sys
 import uuid
-from datetime import datetime, timezone
 
 import structlog
 
 
 def setup_logging() -> None:
-    """Configure structured JSON logging for the application.
+    is_debug = os.getenv("DEBUG", "false").lower() == "true"
+    level = logging.DEBUG if is_debug else logging.WARNING
 
-    Uses structlog to emit JSON-formatted logs with:
-    - ISO 8601 timestamps
-    - Log level
-    - Service name
-    - Trace ID (for request correlation)
-    - Message
-    - Extra context
-    """
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -38,9 +31,8 @@ def setup_logging() -> None:
         cache_logger_on_first_use=True,
     )
 
-    # Set up root logger to capture standard library logs too
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(level)
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(structlog.stdlib.ProcessorFormatter(
@@ -49,9 +41,13 @@ def setup_logging() -> None:
     ))
     root_logger.addHandler(handler)
 
-    # Silence noisy libraries
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+    logging.getLogger("alembic").setLevel(logging.WARNING)
+    logging.getLogger("celery").setLevel(logging.WARNING)
 
 
 def generate_trace_id() -> str:

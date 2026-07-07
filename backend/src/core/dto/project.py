@@ -18,12 +18,36 @@ class UpdateProjectRequest(BaseModel):
     status: Optional[str] = None
 
 
+class LectureSummary(BaseModel):
+    id: uuid.UUID
+    title: str
+    input_type: str
+    status: str
+    duration_seconds: Optional[int] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ProjectResponse(BaseModel):
     id: uuid.UUID
     title: str
     description: Optional[str] = None
     status: str
     lecture_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProjectDetailResponse(BaseModel):
+    id: uuid.UUID
+    title: str
+    description: Optional[str] = None
+    status: str
+    lecture_count: int = 0
+    lectures: list[LectureSummary] = []
     created_at: datetime
     updated_at: datetime
 

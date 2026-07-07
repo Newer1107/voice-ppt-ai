@@ -10,6 +10,7 @@ from backend.src.api.dependencies.auth import get_current_user
 from backend.src.core.dto.project import (
     CreateProjectRequest,
     UpdateProjectRequest,
+    ProjectDetailResponse,
     ProjectResponse,
 )
 from backend.src.core.use_cases.project.create_project import CreateProjectUseCase
@@ -56,7 +57,7 @@ async def create_project(
     return await use_case.execute(user_id=current_user.id, request=request)
 
 
-@router.get("/{project_id}", response_model=ProjectResponse)
+@router.get("/{project_id}", response_model=ProjectDetailResponse)
 async def get_project(
     project_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
