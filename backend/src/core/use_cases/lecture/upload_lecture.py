@@ -124,10 +124,10 @@ class UploadLectureUseCase:
                     root = (Path(__file__).resolve().parent.parent.parent.parent.parent / root).resolve()
                 old_abs = root / old
                 new_abs = root / new
-            if old_abs.exists():
-                new_abs.parent.mkdir(parents=True, exist_ok=True)
-                old_abs.rename(new_abs)
-                logger.debug("Renamed %s -> %s", old, new)
+                if old_abs.exists():
+                    new_abs.parent.mkdir(parents=True, exist_ok=True)
+                    old_abs.rename(new_abs)
+                    logger.debug("Renamed %s -> %s", old, new)
 
         job = JobModel(
             lecture_id=lecture.id, job_type="full_pipeline", status="pending",
