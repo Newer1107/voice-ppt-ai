@@ -35,13 +35,6 @@ def _validate_extension(filename: str, allowed: set[str]) -> bool:
     return f".{ext}" in allowed
 
 
-def _relocate_path(stored_path: str, temp_id: str, real_id: str) -> str | None:
-    """Replace *temp_id* with *real_id* in a stored relative path."""
-    if stored_path and temp_id in stored_path:
-        return stored_path.replace(temp_id, real_id)
-    return stored_path
-
-
 class UploadLectureUseCase:
     """Handle lecture upload with file validation and storage."""
 
@@ -70,7 +63,11 @@ class UploadLectureUseCase:
             raise BadRequestError(message="At least one video or audio file is required")
 
         input_type = "video" if video_data else "audio"
-        placeholder = "{lecture_id}"
+
+        # Generate lecture ID upfront so we can use it in file paths
+        lecture_id = uuid.uuid4()
+        lid = str(lecture_id)
+        pid = str(project_id)
 
         video_path = audio_path = pptx_path = None
 
@@ -80,7 +77,7 @@ class UploadLectureUseCase:
                 raise UnsupportedFileTypeError(message=f"Unsupported video format: {filename}")
             if len(content) > self._settings.MAX_VIDEO_SIZE_BYTES:
                 raise FileTooLargeError(message="Video file exceeds maximum size (2GB)")
-            path = str(StoragePaths.lecture_source_video(placeholder, str(project_id)))
+            path = str(StoragePaths.lecture_source_video(lid, pid))
             video_path = await self._storage.store(path, content)
 
         if audio_data:
@@ -89,7 +86,7 @@ class UploadLectureUseCase:
                 raise UnsupportedFileTypeError(message=f"Unsupported audio format: {filename}")
             if len(content) > self._settings.MAX_AUDIO_SIZE_BYTES:
                 raise FileTooLargeError(message="Audio file exceeds maximum size (500MB)")
-            path = str(StoragePaths.lecture_source_audio(placeholder, str(project_id)))
+            path = str(StoragePaths.lecture_source_audio(lid, pid))
             audio_path = await self._storage.store(path, content)
 
         if pptx_data:
@@ -98,36 +95,16 @@ class UploadLectureUseCase:
                 raise UnsupportedFileTypeError(message=f"Unsupported file format: {filename}")
             if len(content) > self._settings.MAX_PPTX_SIZE_BYTES:
                 raise FileTooLargeError(message="PPTX file exceeds maximum size (200MB)")
-            path = str(StoragePaths.lecture_pptx(placeholder, str(project_id)))
+            path = str(StoragePaths.lecture_pptx(lid, pid))
             pptx_path = await self._storage.store(path, content)
 
         lecture = LectureModel(
+            id=lecture_id,
             project_id=project_id, title=title, input_type=input_type, status="pending",
             video_path=video_path, audio_path=audio_path, pptx_path=pptx_path,
             voice_profile_id=voice_profile_id,
         )
         lecture = await self._lecture_repo.add(lecture)
-        real_id = str(lecture.id)
-
-        lid_old = placeholder
-        lid_new = real_id
-
-        for attr in ("video_path", "audio_path", "pptx_path"):
-            old = getattr(lecture, attr)
-            if old and lid_old in old:
-                new = old.replace(lid_old, lid_new)
-                setattr(lecture, attr, new)
-                import os
-                from pathlib import Path
-                root = Path(self._settings.STORAGE_ROOT)
-                if not root.is_absolute():
-                    root = (Path(__file__).resolve().parent.parent.parent.parent.parent / root).resolve()
-                old_abs = root / old
-                new_abs = root / new
-                if old_abs.exists():
-                    new_abs.parent.mkdir(parents=True, exist_ok=True)
-                    old_abs.rename(new_abs)
-                    logger.debug("Renamed %s -> %s", old, new)
 
         job = JobModel(
             lecture_id=lecture.id, job_type="full_pipeline", status="pending",
@@ -135,27 +112,14 @@ class UploadLectureUseCase:
         )
         job = await self._lecture_repo.add(job)
 
-        # Dispatch Celery task to process pipeline asynchronously
-        try:
-            from backend.src.worker.tasks.lecture_tasks import process_lecture_pipeline
-            process_lecture_pipeline.delay(str(lecture.id))
-            logger.info("Dispatched pipeline task for lecture %s", lecture.id)
-        except ImportError:
-            logger.warning("Celery task not available — pipeline will not run automatically")
-
+        # Create file records
         file_specs = []
         if video_data:
-            p = lecture.video_path or video_path
-            if p: p = p.replace(lid_old, lid_new)
-            file_specs.append((video_data[1], p, "video_source", video_data[0]))
+            file_specs.append((video_data[1], video_path, "video_source", video_data[0]))
         if audio_data:
-            p = lecture.audio_path or audio_path
-            if p: p = p.replace(lid_old, lid_new)
-            file_specs.append((audio_data[1], p, "audio_source", audio_data[0]))
+            file_specs.append((audio_data[1], audio_path, "audio_source", audio_data[0]))
         if pptx_data:
-            p = lecture.pptx_path or pptx_path
-            if p: p = p.replace(lid_old, lid_new)
-            file_specs.append((pptx_data[1], p, "pptx_source", pptx_data[0]))
+            file_specs.append((pptx_data[1], pptx_path, "pptx_source", pptx_data[0]))
 
         for content_bytes, path, ftype, original_name in file_specs:
             if content_bytes and path:
@@ -167,6 +131,15 @@ class UploadLectureUseCase:
                 ))
 
         await self._session.flush()
+
+        # Dispatch Celery task after flush (commit happens in get_db after handler returns).
+        # countdown=3 gives the async session time to commit before the worker picks it up.
+        try:
+            from backend.src.worker.tasks.lecture_tasks import process_lecture_pipeline
+            process_lecture_pipeline.apply_async(args=[lid], countdown=3)
+            logger.info("Dispatched pipeline task for lecture %s", lecture.id)
+        except ImportError:
+            logger.warning("Celery task not available — pipeline will not run automatically")
 
         logger.info("Lecture uploaded: id=%s project=%s type=%s", lecture.id, project_id, input_type)
 
