@@ -35,7 +35,7 @@ sleep 2
 echo "Starting Celery worker..."
 celery -A backend.src.worker.celery_app worker \
   -Q default,audio,transcription,llm,tts,pptx,priority_high \
-  -l WARNING \
+  -l INFO \
   --concurrency=2 &
 CELERY_PID=$!
 
