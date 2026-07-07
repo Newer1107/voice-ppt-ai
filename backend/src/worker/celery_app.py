@@ -4,12 +4,12 @@ import logging
 
 from celery import Celery
 
-from backend.src.config.logging import setup_logging
 from backend.src.config.settings import get_settings
 
-# Apply logging config (Celery defaults to INFO, which leaks SQL queries)
-setup_logging()
-logging.getLogger(__name__).info("Celery logging configured")
+# Celery defaults to INFO which leaks SQLAlchemy engine SQL queries.
+# Silencing noisy loggers without adding a handler (Celery manages its own).
+for _log_name in ("sqlalchemy.engine.Engine", "sqlalchemy.pool", "httpx", "alembic", "celery"):
+    logging.getLogger(_log_name).setLevel(logging.WARNING)
 
 settings = get_settings()
 

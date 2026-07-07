@@ -17,11 +17,11 @@ from backend.src.config.settings import get_settings
 settings = get_settings()
 
 # Async engine (used by FastAPI routes)
+# echo is NOT set — logging is controlled by setup_logging() in logging.py
 engine = create_async_engine(
     str(settings.DATABASE_URL),
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
-    echo=settings.DEBUG,
     pool_pre_ping=True,
 )
 
@@ -33,11 +33,11 @@ async_session_maker = async_sessionmaker(
 )
 
 # Sync engine & session maker (used by Celery workers — orchestrator is sync)
+# echo is NOT set — logging is controlled by setup_logging() in logging.py
 _sync_engine = create_engine(
     str(settings.DATABASE_URL).replace("postgresql+asyncpg://", "postgresql+psycopg2://"),
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
-    echo=settings.DEBUG,
     pool_pre_ping=True,
 )
 sync_session_maker = None  # created on first use (lazy import avoids psycopg2 requirement)
