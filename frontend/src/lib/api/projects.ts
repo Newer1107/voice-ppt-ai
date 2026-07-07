@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Project, PaginatedResponse } from '@/types/project';
+import type { Project, ProjectDetail, PaginatedResponse } from '@/types/project';
 
 export interface CreateProjectData {
   title: string;
@@ -27,7 +27,7 @@ export const projectsApi = {
     return res.data;
   },
 
-  get: async (id: string): Promise<Project> => {
+  get: async (id: string): Promise<ProjectDetail> => {
     const res = await apiClient.get(`/api/v1/projects/${id}`);
     return res.data;
   },

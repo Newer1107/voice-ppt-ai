@@ -1,3 +1,5 @@
+import type { LectureSummary } from './lecture';
+
 export interface Project {
   id: string;
   title: string;
@@ -6,6 +8,10 @@ export interface Project {
   lecture_count: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProjectDetail extends Project {
+  lectures: LectureSummary[];
 }
 
 export interface PaginatedResponse<T> {

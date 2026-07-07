@@ -5,15 +5,16 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { projectsApi } from '@/lib/api/projects';
 import { lecturesApi } from '@/lib/api/lectures';
-import type { Project } from '@/types/project';
+import type { ProjectDetail } from '@/types/project';
 import type { LectureSummary } from '@/types/lecture';
 import { ArrowLeft, Plus, Trash2, FileText, Video, Music } from 'lucide-react';
 
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [project, setProject] = useState<Project | null>(null);
+  const [project, setProject] = useState<ProjectDetail | null>(null);
   const [lectures, setLectures] = useState<LectureSummary[]>([]);
+  const [lecturesLoading, setLecturesLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [showDelete, setShowDelete] = useState(false);
 
@@ -22,10 +23,12 @@ export default function ProjectDetailPage() {
       const id = params.id as string;
       const p = await projectsApi.get(id);
       setProject(p);
+      setLectures(p.lectures);
     } catch (err) {
       console.error('Failed to load project:', err);
     } finally {
       setLoading(false);
+      setLecturesLoading(false);
     }
   };
 
