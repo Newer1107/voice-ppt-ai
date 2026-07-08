@@ -58,7 +58,7 @@ def generate_slide_tts(
             files["voice_profile_id"] = (None, voice_profile_id)
         files["speed"] = (None, str(speed))
 
-        resp = httpx.post(url, files=files, timeout=300)
+        resp = httpx.post(url, files=files, timeout=600)
         resp.raise_for_status()
 
         # Save audio to file

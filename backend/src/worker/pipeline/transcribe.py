@@ -63,7 +63,7 @@ def transcribe_audio(
                 params["language"] = language
             params["vad_filter"] = "true" if vad_filter else "false"
 
-            resp = httpx.post(url, files=files, data=params, timeout=600)
+            resp = httpx.post(url, files=files, data=params, timeout=1800)
             resp.raise_for_status()
             data = resp.json()
 

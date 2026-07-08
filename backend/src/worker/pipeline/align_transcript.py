@@ -107,7 +107,7 @@ def align_transcript(
                 "slides": slides_list,
                 "candidates": candidates,
             },
-            timeout=300,
+            timeout=600,
         )
         resp.raise_for_status()
         data = resp.json()

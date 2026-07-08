@@ -51,7 +51,7 @@ def generate_narrations(
     }
 
     try:
-        resp = httpx.post(url, json=payload, timeout=600)
+        resp = httpx.post(url, json=payload, timeout=1800)
         resp.raise_for_status()
         data = resp.json()
     except httpx.TimeoutException:

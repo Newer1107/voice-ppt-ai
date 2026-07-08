@@ -63,7 +63,7 @@ def generate_embeddings(
             resp = httpx.post(
                 url,
                 json={"texts": uncached_texts, "normalize": True},
-                timeout=120,
+                timeout=600,
             )
             resp.raise_for_status()
             data = resp.json()
