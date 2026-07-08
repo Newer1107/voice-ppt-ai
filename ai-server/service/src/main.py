@@ -243,19 +243,21 @@ async def dimensions():
 # ─── LLM — Alignment ────────────────────────────────────────────────
 
 def _call_llm(messages: list[dict], max_tokens: int = 2048, temperature: float = 0.1) -> str:
+    # Ollama native /api/chat endpoint
     payload = {
         "model": LLM_MODEL, "messages": messages,
-        "max_tokens": max_tokens, "temperature": temperature,
-        "response_format": {"type": "json_object"},
+        "stream": False,
+        "options": {"temperature": temperature, "num_predict": max_tokens},
     }
     try:
-        r = httpx.post(f"{LLM_API_URL}/chat/completions", json=payload, timeout=120)
+        base = LLM_API_URL.rstrip("/v1").rstrip("/")
+        r = httpx.post(f"{base}/api/chat", json=payload, timeout=120)
         r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
+        return r.json()["message"]["content"]
     except httpx.TimeoutException:
         raise HTTPException(504, "LLM timed out")
     except Exception as e:
-        logger.exception("SGLang call failed")
+        logger.exception("LLM call failed")
         raise HTTPException(502, f"LLM error: {e}")
 
 
