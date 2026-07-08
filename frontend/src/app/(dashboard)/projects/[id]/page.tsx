@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { projectsApi } from '@/lib/api/projects';
+import { apiClient } from '@/lib/api/client';
 import { lecturesApi } from '@/lib/api/lectures';
 import type { ProjectDetail } from '@/types/project';
 import type { LectureSummary } from '@/types/lecture';
+import { toast } from 'sonner';
 import { ArrowLeft, Plus, Trash2, FileText, Video, Music } from 'lucide-react';
 
 export default function ProjectDetailPage() {
@@ -17,6 +19,7 @@ export default function ProjectDetailPage() {
   const [lecturesLoading, setLecturesLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [showDelete, setShowDelete] = useState(false);
+  const [lectureUrls, setLectureUrls] = useState<Record<string, string>>({});
 
   const loadProject = async () => {
     try {
@@ -25,7 +28,7 @@ export default function ProjectDetailPage() {
       setProject(p);
       setLectures(p.lectures);
     } catch (err) {
-      console.error('Failed to load project:', err);
+      toast.error('Failed to load project');
     } finally {
       setLoading(false);
       setLecturesLoading(false);
@@ -41,9 +44,61 @@ export default function ProjectDetailPage() {
       await projectsApi.delete(params.id as string);
       router.push('/dashboard');
     } catch (err) {
-      console.error('Failed to delete project:', err);
+      toast.error('Failed to delete project');
     }
   };
+
+  const downloadFile = async (url: string, filename: string) => {
+    try {
+      const res = await apiClient.get(url, { responseType: 'blob' });
+      const blobUrl = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename.endsWith('.pptx') ? filename : `${filename}.pptx`;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      toast.error('Failed to download file');
+    }
+  };
+
+  useEffect(() => {
+    const hasProcessing = lectures.some(
+      (l) => l.status === 'processing' || l.status === 'pending',
+    );
+    if (!hasProcessing) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const p = await projectsApi.get(params.id as string);
+        setProject(p);
+        setLectures(p.lectures);
+      } catch {
+        // retry on next tick
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [lectures, params.id]);
+
+  useEffect(() => {
+    lectures.forEach((lecture) => {
+      if (
+        lecture.status === 'completed' &&
+        !lectureUrls[lecture.id] &&
+        !lecture.narrated_pptx_url
+      ) {
+        lecturesApi.get(lecture.id).then((detail) => {
+          if (detail.narrated_pptx_url) {
+            setLectureUrls((prev) => ({
+              ...prev,
+              [lecture.id]: detail.narrated_pptx_url!,
+            }));
+          }
+        }).catch(() => {});
+      }
+    });
+  }, [lectures, lectureUrls]);
 
   if (loading) {
     return <div className="text-center py-12 text-slate-500">Loading...</div>;
@@ -144,9 +199,25 @@ export default function ProjectDetailPage() {
                     </p>
                   </div>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusBadge(lecture.status)}`}>
-                  {lecture.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusBadge(lecture.status)}`}>
+                    {lecture.status}
+                  </span>
+                  {lecture.status === 'completed' && (lecture.narrated_pptx_url || lectureUrls[lecture.id]) && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadFile(
+                          lecture.narrated_pptx_url || lectureUrls[lecture.id]!,
+                          `${lecture.title}.pptx`,
+                        );
+                      }}
+                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 whitespace-nowrap"
+                    >
+                      Download PPTX
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

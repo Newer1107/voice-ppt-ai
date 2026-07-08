@@ -24,6 +24,7 @@ class LectureSummary(BaseModel):
     input_type: str
     status: str
     duration_seconds: Optional[int] = None
+    narrated_pptx_url: Optional[str] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

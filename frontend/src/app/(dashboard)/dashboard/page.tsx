@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { projectsApi } from '@/lib/api/projects';
 import type { Project } from '@/types/project';
+import { toast } from 'sonner';
 import { FolderOpen, Plus, FileText, Mic } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -18,7 +19,7 @@ export default function DashboardPage() {
       const res = await projectsApi.list({ page_size: 10 });
       setProjects(res.items);
     } catch (err) {
-      console.error('Failed to load projects:', err);
+      toast.error('Failed to load projects');
     } finally {
       setLoading(false);
     }
@@ -37,7 +38,7 @@ export default function DashboardPage() {
       setNewDescription('');
       loadProjects();
     } catch (err) {
-      console.error('Failed to create project:', err);
+      toast.error('Failed to create project');
     }
   };
 

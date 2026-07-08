@@ -5,6 +5,7 @@ export interface LectureSummary {
   status: string;
   duration_seconds?: number;
   created_at: string;
+  narrated_pptx_url?: string;
 }
 
 export interface LectureDetail {

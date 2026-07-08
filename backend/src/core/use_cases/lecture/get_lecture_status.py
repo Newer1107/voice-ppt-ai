@@ -18,6 +18,7 @@ PIPELINE_STAGES = [
     "extract_audio",
     "transcribe",
     "parse_pptx",
+    "generate_embeddings",
     "align_transcript",
     "generate_narration",
     "generate_tts",
@@ -28,10 +29,11 @@ STAGE_WEIGHTS = {
     "extract_audio": 0.10,
     "transcribe": 0.25,
     "parse_pptx": 0.10,
+    "generate_embeddings": 0.05,
     "align_transcript": 0.15,
     "generate_narration": 0.15,
     "generate_tts": 0.15,
-    "embed_narration": 0.10,
+    "embed_narration": 0.05,
 }
 
 

@@ -1,21 +1,22 @@
 """Get lecture detail use case."""
 
 import uuid
-from typing import Optional
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.src.api.errors.handlers import NotFoundError
 from backend.src.core.dto.lecture import (
     LectureDetailResponse,
-    SlideNarrationResponse,
     NarrationSummaryResponse,
+    SlideNarrationResponse,
 )
+from backend.src.infrastructure.db.models.file_record import FileModel
 from backend.src.infrastructure.db.repositories.lecture_repo import LectureRepository
-from backend.src.infrastructure.db.repositories.slide_repo import SlideRepository
 from backend.src.infrastructure.db.repositories.narration_repo import (
     NarrationRepository,
 )
+from backend.src.infrastructure.db.repositories.slide_repo import SlideRepository
 
 
 class GetLectureUseCase:
@@ -48,18 +49,36 @@ class GetLectureUseCase:
         if not project:
             raise NotFoundError(message="Lecture not found")
 
+        # Query FileModel records for download URLs
+        stmt = select(FileModel).where(FileModel.lecture_id == lecture_id)
+        result = await self._lecture_repo._session.execute(stmt)
+        file_models = result.scalars().all()
+
+        # Build lookup: original_name -> FileModel (for narration audio)
+        audio_file_map = {
+            fm.original_name: fm
+            for fm in file_models
+            if fm.file_type == "narration_audio"
+        }
+
+        # Find narrated PPTX file
+        pptx_file = next((fm for fm in file_models if fm.file_type == "narrated_pptx"), None)
+        narrated_pptx_url = f"/api/v1/files/{pptx_file.id}" if pptx_file else None
+
         # Get slides with narrations
         slides = await self._slide_repo.list_by_lecture(lecture_id)
         slide_responses = []
         for slide in slides:
             narration = None
             if slide.narration:
+                original_name = f"slide_{slide.slide_number:03d}.wav"
+                audio_file = audio_file_map.get(original_name)
                 narration = NarrationSummaryResponse(
                     id=slide.narration.id,
                     script_text=slide.narration.script_text,
                     audio_url=(
-                        f"/api/v1/files/{slide.narration.id}"
-                        if slide.narration.audio_path
+                        f"/api/v1/files/{audio_file.id}"
+                        if audio_file
                         else None
                     ),
                     duration_seconds=slide.narration.duration_seconds,
@@ -82,14 +101,8 @@ class GetLectureUseCase:
             status=lecture.status,
             duration_seconds=lecture.duration_seconds,
             slides=slide_responses,
-            transcript_url=(
-                "/api/v1/transcripts/" + str(lecture.id)
-            ),
-            narrated_pptx_url=(
-                "/api/v1/files/download/" + str(lecture.id)
-                if lecture.narrated_pptx_path
-                else None
-            ),
+            transcript_url=None,
+            narrated_pptx_url=narrated_pptx_url,
             created_at=lecture.created_at,
             updated_at=lecture.updated_at,
         )

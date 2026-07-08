@@ -6,6 +6,7 @@ import { projectsApi } from '@/lib/api/projects';
 import { lecturesApi, voiceApi } from '@/lib/api/lectures';
 import type { Project } from '@/types/project';
 import type { VoiceProfile } from '@/types/lecture';
+import { toast } from 'sonner';
 import { Upload, File, X, Check } from 'lucide-react';
 
 export default function UploadLecturePage() {
@@ -36,7 +37,7 @@ export default function UploadLecturePage() {
         setProjects(p.items);
         setVoiceProfiles(v);
       } catch (err) {
-        console.error('Failed to load data:', err);
+        toast.error('Failed to load data');
       }
     };
     load();

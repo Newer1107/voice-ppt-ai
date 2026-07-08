@@ -93,11 +93,7 @@ def transcribe_audio(
         if segments[i].segment_number <= segments[i - 1].segment_number:
             logger.warning("Segments out of order at index %d", i)
 
-    # Verify confidence values
-    for seg in segments:
-        if seg.confidence is not None and (seg.confidence < 0 or seg.confidence > 1):
-            logger.warning("Segment %d has out-of-range confidence: %s", seg.segment_number, seg.confidence)
-
+    # Note: confidence is Whisper avg_logprob (always ≤ 0, closer to 0 = better)
     result = TranscriptionResult(
         segments=segments,
         language=data.get("language", "en"),

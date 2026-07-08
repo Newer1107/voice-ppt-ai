@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { projectsApi } from '@/lib/api/projects';
 import type { Project } from '@/types/project';
+import { toast } from 'sonner';
 import { FolderOpen, Plus } from 'lucide-react';
 
 export default function ProjectsPage() {
@@ -18,7 +19,7 @@ export default function ProjectsPage() {
       const res = await projectsApi.list({ page_size: 100 });
       setProjects(res.items);
     } catch (err) {
-      console.error('Failed to load projects:', err);
+      toast.error('Failed to load projects');
     } finally {
       setLoading(false);
     }
@@ -35,7 +36,7 @@ export default function ProjectsPage() {
       setNewDescription('');
       loadProjects();
     } catch (err) {
-      console.error('Failed to create project:', err);
+      toast.error('Failed to create project');
     }
   };
 

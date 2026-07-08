@@ -10,30 +10,30 @@ Each stage is independently tested. The orchestrator:
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
 
 from sqlalchemy import select
 
 from backend.src.config.settings import get_settings
-from backend.src.infrastructure.db.models.lecture import LectureModel
-from backend.src.infrastructure.db.models.job import JobModel
-from backend.src.infrastructure.db.models.slide import SlideModel
-from backend.src.infrastructure.db.models.narration import NarrationModel as NarrationDbModel
-from backend.src.infrastructure.db.models.transcript_segment import TranscriptSegmentModel
 from backend.src.infrastructure.db.models.file_record import FileModel
+from backend.src.infrastructure.db.models.job import JobModel
+from backend.src.infrastructure.db.models.lecture import LectureModel
+from backend.src.infrastructure.db.models.narration import NarrationModel as NarrationDbModel
+from backend.src.infrastructure.db.models.project import ProjectModel
+from backend.src.infrastructure.db.models.slide import SlideModel
+from backend.src.infrastructure.db.models.transcript_segment import TranscriptSegmentModel
+
 # Sync-only — no async repositories here
 from backend.src.infrastructure.storage.local_storage import StoragePaths
-
-from backend.src.worker.pipeline.extract_audio import extract_audio
-from backend.src.worker.pipeline.transcribe import transcribe_audio
-from backend.src.worker.pipeline.parse_pptx import parse_pptx
-from backend.src.worker.pipeline.generate_embeddings import generate_embeddings
 from backend.src.worker.pipeline.align_transcript import align_transcript
+from backend.src.worker.pipeline.embed_narration import embed_narration_into_pptx
+from backend.src.worker.pipeline.extract_audio import extract_audio
+from backend.src.worker.pipeline.generate_embeddings import generate_embeddings
 from backend.src.worker.pipeline.generate_narration import generate_narrations
 from backend.src.worker.pipeline.generate_tts import generate_slide_tts
-from backend.src.worker.pipeline.embed_narration import embed_narration_into_pptx
+from backend.src.worker.pipeline.parse_pptx import parse_pptx
+from backend.src.worker.pipeline.transcribe import transcribe_audio
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ def _update_job_stage(
     lecture_id: uuid.UUID,
     stage: str,
     status: str,
-    error_message: Optional[str] = None,
+    error_message: str | None = None,
 ) -> None:
     """Create or update job record for a pipeline stage."""
     jobs = session.query(JobModel).filter(JobModel.lecture_id == lecture_id).all()
@@ -89,9 +89,9 @@ def _update_job_stage(
         job.status = status
         job.error_message = error_message
         if status == "running":
-            job.started_at = datetime.now(timezone.utc)
+            job.started_at = datetime.now(UTC)
         if status in ("completed", "failed"):
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
     else:
         job = JobModel(
             lecture_id=lecture_id,
@@ -311,6 +311,9 @@ def run_full_pipeline(
                     )
                     session.add(narration_db)
             session.flush()
+        else:
+            logger.info("PIPELINE [%s]: Stage 6/8 — Skipped (no PPTX)", lecture_id)
+            lecture.error_message = "No PPTX file provided. Narration generation skipped."
 
         _update_job_stage(session, lecture_id, "generate_narration", "completed")
         completed_stages.append("generate_narration")
@@ -340,6 +343,26 @@ def run_full_pipeline(
             )
             ndb.audio_path = rel_audio
             ndb.duration_seconds = tts_result.duration_seconds
+
+        # Create FileModel records for narration audio
+        project = session.query(ProjectModel).filter(ProjectModel.id == lecture.project_id).first()
+        if project:
+            for ndb in narrations_db:
+                if ndb.audio_path:
+                    slide = session.query(SlideModel).filter(SlideModel.id == ndb.slide_id).first()
+                    if slide:
+                        abs_audio = storage_root / ndb.audio_path
+                        file_size = os.path.getsize(abs_audio) if abs_audio.exists() else 0
+                        fm = FileModel(
+                            user_id=project.user_id,
+                            lecture_id=lecture_id,
+                            file_type="narration_audio",
+                            original_name=f"slide_{slide.slide_number:03d}.wav",
+                            storage_path=ndb.audio_path,
+                            mime_type="audio/wav",
+                            file_size_bytes=file_size,
+                        )
+                        session.add(fm)
         session.flush()
 
         _update_job_stage(session, lecture_id, "generate_tts", "completed")
@@ -369,11 +392,29 @@ def run_full_pipeline(
                     slide_audio_map=slide_audio_map,
                     output_path=abs_out,
                 )
-                lecture.narrated_pptx_path = embed_result.output_path
+                lecture.narrated_pptx_path = rel_out
+
+                if project:
+                    abs_pptx = storage_root / rel_out
+                    pptx_size = abs_pptx.stat().st_size if abs_pptx.exists() else 0
+                    fm_pptx = FileModel(
+                        user_id=project.user_id,
+                        lecture_id=lecture_id,
+                        file_type="narrated_pptx",
+                        original_name=f"{lecture.title}_narrated.pptx",
+                        storage_path=rel_out,
+                        mime_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        file_size_bytes=pptx_size,
+                    )
+                    session.add(fm_pptx)
                 session.flush()
 
         _update_job_stage(session, lecture_id, "embed_narration", "completed")
         completed_stages.append("embed_narration")
+
+        # If no slides_data was ever populated, flag it for the frontend
+        if not slides_data and not lecture.error_message:
+            lecture.error_message = "Completed (audio only — no slides to narrate)"
 
         # ─── Complete ─────────────────────────────────────────────────
         final_progress = _update_progress(session, lecture_id, completed_stages)

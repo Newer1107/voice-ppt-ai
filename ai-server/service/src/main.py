@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import tempfile
 import time
 import uuid
@@ -389,15 +390,23 @@ async def synthesize(
 
     start = time.time()
     try:
-        duration = max(1.0, len(text.split()) / 2.5 / speed)
-        num_samples = int(TTS_SAMPLE_RATE * duration)
-        buf = io.BytesIO()
-        with wave.open(buf, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(TTS_SAMPLE_RATE)
-            wf.writeframes(b"\x00\x00" * num_samples)
-        audio = buf.getvalue()
+        from gtts import gTTS
+        tts = gTTS(text=text, lang="en", slow=False)
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_mp3:
+            mp3_path = tmp_mp3.name
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
+            wav_path = tmp_wav.name
+        tts.save(mp3_path)
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", mp3_path,
+             "-acodec", "pcm_s16le", "-ar", "24000", "-ac", "1", wav_path],
+            capture_output=True, check=True,
+        )
+        with open(wav_path, "rb") as f:
+            audio = f.read()
+        os.unlink(mp3_path)
+        os.unlink(wav_path)
+        duration = round(len(audio) / 24000 / 2, 2)
         pt = time.time() - start
         logger.info("TTS: %d chars -> %.1fs in %.2fs", len(text), duration, pt)
         return Response(

@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { voiceApi } from '@/lib/api/lectures';
 import type { VoiceProfile } from '@/types/lecture';
+import { toast } from 'sonner';
 import { Mic, Plus, Trash2, Upload } from 'lucide-react';
 
 export default function VoiceProfilesPage() {
@@ -21,7 +22,7 @@ export default function VoiceProfilesPage() {
       const list = await voiceApi.list();
       setProfiles(list);
     } catch (err) {
-      console.error('Failed to load voice profiles:', err);
+      toast.error('Failed to load voice profiles');
     } finally {
       setLoading(false);
     }
@@ -65,7 +66,7 @@ export default function VoiceProfilesPage() {
       await voiceApi.delete(id);
       loadProfiles();
     } catch (err) {
-      console.error('Failed to delete voice profile:', err);
+      toast.error('Failed to delete voice profile');
     }
   };
 
