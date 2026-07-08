@@ -64,12 +64,16 @@ bge_model: Optional[SentenceTransformer] = None
 tts_model: Optional[dict] = None
 
 
+WHISPER_CPU_THREADS = int(os.getenv("WHISPER_CPU_THREADS", "4"))
+WHISPER_NUM_WORKERS = int(os.getenv("WHISPER_NUM_WORKERS", "1"))
+
+
 def _load_whisper() -> faster_whisper.WhisperModel:
     logger.info("Loading Whisper: %s (device=%s)", WHISPER_MODEL_SIZE, WHISPER_DEVICE)
     try:
         m = faster_whisper.WhisperModel(
             WHISPER_MODEL_SIZE, device=WHISPER_DEVICE, compute_type=WHISPER_COMPUTE_TYPE,
-            cpu_threads=4, num_workers=1,
+            cpu_threads=WHISPER_CPU_THREADS, num_workers=WHISPER_NUM_WORKERS,
         )
         logger.info("Whisper loaded")
         return m
@@ -77,7 +81,7 @@ def _load_whisper() -> faster_whisper.WhisperModel:
         logger.warning("Whisper GPU failed (%s), falling back to CPU", e)
         m = faster_whisper.WhisperModel(
             WHISPER_MODEL_SIZE, device="cpu", compute_type="int8",
-            cpu_threads=4, num_workers=1,
+            cpu_threads=WHISPER_CPU_THREADS, num_workers=WHISPER_NUM_WORKERS,
         )
         logger.info("Whisper loaded on CPU")
         return m
